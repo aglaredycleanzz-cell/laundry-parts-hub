@@ -2,7 +2,8 @@ import { z } from "zod";
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
+import { adminProcedure, publicProcedure, protectedProcedure, router } from "./_core/trpc";
+import { visionRouter } from "./agents/visionRouter";
 import {
   getProducts,
   getProductById,
@@ -25,22 +26,113 @@ import {
   createOrder,
   updateOrder,
   getNotifications,
-  createNotification,
   markNotificationAsRead,
   getCommunicationLog,
   addCommunicationLog,
 } from "./db";
 
+const decimalString = z
+  .string()
+  .regex(/^-?\d+(\.\d{1,4})?$/, "Invalid decimal value");
+
+const currencyCode = z
+  .string()
+  .regex(/^[A-Z]{3}$/, "Currency must be a 3-letter ISO code");
+
+const emailField = z.string().email().max(320);
+const phoneField = z.string().min(3).max(20);
+
+const quotationItemSchema = z.object({
+  productId: z.number().int().positive(),
+  quantity: z.number().int().positive(),
+  price: decimalString,
+});
+
+const productUpdateSchema = z
+  .object({
+    name: z.string().min(1).max(255).optional(),
+    description: z.string().optional(),
+    type: z.string().max(100).optional(),
+    specifications: z.record(z.string(), z.unknown()).optional(),
+    costPrice: decimalString.optional(),
+    costCurrency: currencyCode.optional(),
+    sellingPrice: decimalString.optional(),
+    sellingCurrency: currencyCode.optional(),
+    profitMargin: decimalString.optional(),
+    supplierId: z.number().int().positive().optional(),
+    supplierSku: z.string().max(100).optional(),
+    currentStock: z.number().int().min(0).optional(),
+    reorderPoint: z.number().int().min(0).optional(),
+    imageUrl: z.string().url().max(500).optional(),
+    isActive: z.boolean().optional(),
+  })
+  .strict();
+
+const supplierUpdateSchema = z
+  .object({
+    name: z.string().min(1).max(255).optional(),
+    country: z.string().max(100).optional(),
+    website: z.string().url().max(500).optional(),
+    contactPerson: z.string().max(255).optional(),
+    email: emailField.optional(),
+    phone: phoneField.optional(),
+    whatsapp: phoneField.optional(),
+    minimumOrderQuantity: z.number().int().min(1).optional(),
+    leadTime: z.number().int().min(0).optional(),
+    reliabilityScore: decimalString.optional(),
+    notes: z.string().optional(),
+    isActive: z.boolean().optional(),
+  })
+  .strict();
+
+const customerUpdateSchema = z
+  .object({
+    name: z.string().min(1).max(255).optional(),
+    type: z.enum(["hotel", "hospital", "laundry", "maintenance_manager", "other"]).optional(),
+    contactPerson: z.string().max(255).optional(),
+    email: emailField.optional(),
+    phone: phoneField.optional(),
+    whatsapp: phoneField.optional(),
+    address: z.string().optional(),
+    city: z.string().max(100).optional(),
+    country: z.string().max(100).optional(),
+    notes: z.string().optional(),
+    isActive: z.boolean().optional(),
+  })
+  .strict();
+
+const quotationUpdateSchema = z
+  .object({
+    status: z.enum(["draft", "sent", "viewed", "accepted", "rejected", "expired"]).optional(),
+    items: z.array(quotationItemSchema).optional(),
+    totalAmount: decimalString.optional(),
+    currency: currencyCode.optional(),
+    validUntil: z.date().optional(),
+    notes: z.string().optional(),
+  })
+  .strict();
+
+const orderUpdateSchema = z
+  .object({
+    status: z.enum(["pending", "confirmed", "shipped", "delivered", "cancelled"]).optional(),
+    paymentStatus: z.enum(["pending", "partial", "paid", "overdue"]).optional(),
+    items: z.array(quotationItemSchema).optional(),
+    totalAmount: decimalString.optional(),
+    deliveryDate: z.date().optional(),
+    notes: z.string().optional(),
+  })
+  .strict();
+
 export const appRouter = router({
   system: systemRouter,
+  vision: visionRouter,
+
   auth: router({
     me: publicProcedure.query((opts) => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
-      return {
-        success: true,
-      } as const;
+      return { success: true } as const;
     }),
   }),
 
@@ -52,315 +144,227 @@ export const appRouter = router({
           isActive: z.boolean().optional(),
         })
       )
-      .query(async ({ input }) => {
-        return getProducts(input);
-      }),
+      .query(({ input }) => getProducts(input)),
 
     getById: protectedProcedure
-      .input(z.object({ id: z.number() }))
-      .query(async ({ input }) => {
-        return getProductById(input.id);
-      }),
+      .input(z.object({ id: z.number().int().positive() }))
+      .query(({ input }) => getProductById(input.id)),
 
-    create: protectedProcedure
+    create: adminProcedure
       .input(
         z.object({
-          sku: z.string(),
-          name: z.string(),
+          sku: z.string().min(1).max(50),
+          name: z.string().min(1).max(255),
           description: z.string().optional(),
           category: z.enum(["machinery", "spare_parts"]),
-          type: z.string().optional(),
-          specifications: z.any().optional(),
-          costPrice: z.string(),
-          sellingPrice: z.string(),
-          profitMargin: z.string().optional(),
-          supplierId: z.number().optional(),
-          supplierSku: z.string().optional(),
-          currentStock: z.number().optional(),
-          reorderPoint: z.number().optional(),
-          imageUrl: z.string().optional(),
+          type: z.string().max(100).optional(),
+          specifications: z.record(z.string(), z.unknown()).optional(),
+          costPrice: decimalString,
+          costCurrency: currencyCode.default("USD"),
+          sellingPrice: decimalString,
+          sellingCurrency: currencyCode.default("OMR"),
+          profitMargin: decimalString.optional(),
+          supplierId: z.number().int().positive().optional(),
+          supplierSku: z.string().max(100).optional(),
+          currentStock: z.number().int().min(0).optional(),
+          reorderPoint: z.number().int().min(0).optional(),
+          imageUrl: z.string().url().max(500).optional(),
         })
       )
-      .mutation(async ({ input, ctx }) => {
-        if (ctx.user?.role !== "admin") {
-          throw new Error("Unauthorized");
-        }
-        return createProduct(input as any);
-      }),
+      .mutation(({ input }) => createProduct(input)),
 
-    update: protectedProcedure
+    update: adminProcedure
       .input(
         z.object({
-          id: z.number(),
-          updates: z.any(),
+          id: z.number().int().positive(),
+          updates: productUpdateSchema,
         })
       )
-      .mutation(async ({ input, ctx }) => {
-        if (ctx.user?.role !== "admin") {
-          throw new Error("Unauthorized");
-        }
-        return updateProduct(input.id, input.updates);
-      }),
+      .mutation(({ input }) => updateProduct(input.id, input.updates)),
   }),
 
   suppliers: router({
     list: protectedProcedure
-      .input(
-        z.object({
-          isActive: z.boolean().optional(),
-        })
-      )
-      .query(async ({ input }) => {
-        return getSuppliers(input);
-      }),
+      .input(z.object({ isActive: z.boolean().optional() }))
+      .query(({ input }) => getSuppliers(input)),
 
     getById: protectedProcedure
-      .input(z.object({ id: z.number() }))
-      .query(async ({ input }) => {
-        return getSupplierById(input.id);
-      }),
+      .input(z.object({ id: z.number().int().positive() }))
+      .query(({ input }) => getSupplierById(input.id)),
 
-    create: protectedProcedure
+    create: adminProcedure
       .input(
         z.object({
-          name: z.string(),
-          country: z.string().optional(),
-          website: z.string().optional(),
-          contactPerson: z.string().optional(),
-          email: z.string().optional(),
-          phone: z.string().optional(),
-          whatsapp: z.string().optional(),
-          minimumOrderQuantity: z.number().optional(),
-          leadTime: z.number().optional(),
-          reliabilityScore: z.string().optional(),
+          name: z.string().min(1).max(255),
+          country: z.string().max(100).optional(),
+          website: z.string().url().max(500).optional(),
+          contactPerson: z.string().max(255).optional(),
+          email: emailField.optional(),
+          phone: phoneField.optional(),
+          whatsapp: phoneField.optional(),
+          minimumOrderQuantity: z.number().int().min(1).optional(),
+          leadTime: z.number().int().min(0).optional(),
+          reliabilityScore: decimalString.optional(),
           notes: z.string().optional(),
         })
       )
-      .mutation(async ({ input, ctx }) => {
-        if (ctx.user?.role !== "admin") {
-          throw new Error("Unauthorized");
-        }
-        return createSupplier(input as any);
-      }),
+      .mutation(({ input }) => createSupplier(input)),
 
-    update: protectedProcedure
+    update: adminProcedure
       .input(
         z.object({
-          id: z.number(),
-          updates: z.any(),
+          id: z.number().int().positive(),
+          updates: supplierUpdateSchema,
         })
       )
-      .mutation(async ({ input, ctx }) => {
-        if (ctx.user?.role !== "admin") {
-          throw new Error("Unauthorized");
-        }
-        return updateSupplier(input.id, input.updates);
-      }),
+      .mutation(({ input }) => updateSupplier(input.id, input.updates)),
   }),
 
   customers: router({
     list: protectedProcedure
       .input(
         z.object({
-          type: z.string().optional(),
+          type: z.enum(["hotel", "hospital", "laundry", "maintenance_manager", "other"]).optional(),
           isActive: z.boolean().optional(),
         })
       )
-      .query(async ({ input }) => {
-        return getCustomers(input);
-      }),
+      .query(({ input }) => getCustomers(input)),
 
     getById: protectedProcedure
-      .input(z.object({ id: z.number() }))
-      .query(async ({ input }) => {
-        return getCustomerById(input.id);
-      }),
+      .input(z.object({ id: z.number().int().positive() }))
+      .query(({ input }) => getCustomerById(input.id)),
 
-    create: protectedProcedure
+    create: adminProcedure
       .input(
         z.object({
-          name: z.string(),
+          name: z.string().min(1).max(255),
           type: z.enum(["hotel", "hospital", "laundry", "maintenance_manager", "other"]),
-          contactPerson: z.string().optional(),
-          email: z.string().optional(),
-          phone: z.string().optional(),
-          whatsapp: z.string().optional(),
+          contactPerson: z.string().max(255).optional(),
+          email: emailField.optional(),
+          phone: phoneField.optional(),
+          whatsapp: phoneField.optional(),
           address: z.string().optional(),
-          city: z.string().optional(),
-          country: z.string().optional(),
+          city: z.string().max(100).optional(),
+          country: z.string().max(100).optional(),
           notes: z.string().optional(),
         })
       )
-      .mutation(async ({ input, ctx }) => {
-        if (ctx.user?.role !== "admin") {
-          throw new Error("Unauthorized");
-        }
-        return createCustomer(input as any);
-      }),
+      .mutation(({ input }) => createCustomer(input)),
 
-    update: protectedProcedure
+    update: adminProcedure
       .input(
         z.object({
-          id: z.number(),
-          updates: z.any(),
+          id: z.number().int().positive(),
+          updates: customerUpdateSchema,
         })
       )
-      .mutation(async ({ input, ctx }) => {
-        if (ctx.user?.role !== "admin") {
-          throw new Error("Unauthorized");
-        }
-        return updateCustomer(input.id, input.updates);
-      }),
+      .mutation(({ input }) => updateCustomer(input.id, input.updates)),
   }),
 
   quotations: router({
     list: protectedProcedure
       .input(
         z.object({
-          customerId: z.number().optional(),
-          status: z.string().optional(),
+          customerId: z.number().int().positive().optional(),
+          status: z.enum(["draft", "sent", "viewed", "accepted", "rejected", "expired"]).optional(),
         })
       )
-      .query(async ({ input }) => {
-        return getQuotations(input);
-      }),
+      .query(({ input }) => getQuotations(input)),
 
     getById: protectedProcedure
-      .input(z.object({ id: z.number() }))
-      .query(async ({ input }) => {
-        return getQuotationById(input.id);
-      }),
+      .input(z.object({ id: z.number().int().positive() }))
+      .query(({ input }) => getQuotationById(input.id)),
 
-    create: protectedProcedure
+    create: adminProcedure
       .input(
         z.object({
-          quotationNumber: z.string(),
-          customerId: z.number(),
-          items: z.any(),
-          totalAmount: z.string().optional(),
-          currency: z.string().optional(),
+          quotationNumber: z.string().min(1).max(50),
+          customerId: z.number().int().positive(),
+          items: z.array(quotationItemSchema).min(1),
+          totalAmount: decimalString.optional(),
+          currency: currencyCode.default("OMR"),
           validUntil: z.date().optional(),
           notes: z.string().optional(),
         })
       )
-      .mutation(async ({ input, ctx }) => {
-        if (ctx.user?.role !== "admin") {
-          throw new Error("Unauthorized");
-        }
-        return createQuotation(input as any);
-      }),
+      .mutation(({ input }) => createQuotation(input)),
 
-    update: protectedProcedure
+    update: adminProcedure
       .input(
         z.object({
-          id: z.number(),
-          updates: z.any(),
+          id: z.number().int().positive(),
+          updates: quotationUpdateSchema,
         })
       )
-      .mutation(async ({ input, ctx }) => {
-        if (ctx.user?.role !== "admin") {
-          throw new Error("Unauthorized");
-        }
-        return updateQuotation(input.id, input.updates);
-      }),
+      .mutation(({ input }) => updateQuotation(input.id, input.updates)),
   }),
 
   orders: router({
     list: protectedProcedure
       .input(
         z.object({
-          customerId: z.number().optional(),
-          status: z.string().optional(),
+          customerId: z.number().int().positive().optional(),
+          status: z.enum(["pending", "confirmed", "shipped", "delivered", "cancelled"]).optional(),
         })
       )
-      .query(async ({ input }) => {
-        return getOrders(input);
-      }),
+      .query(({ input }) => getOrders(input)),
 
     getById: protectedProcedure
-      .input(z.object({ id: z.number() }))
-      .query(async ({ input }) => {
-        return getOrderById(input.id);
-      }),
+      .input(z.object({ id: z.number().int().positive() }))
+      .query(({ input }) => getOrderById(input.id)),
 
-    create: protectedProcedure
+    create: adminProcedure
       .input(
         z.object({
-          orderNumber: z.string(),
-          customerId: z.number(),
-          quotationId: z.number().optional(),
-          items: z.any(),
-          totalAmount: z.string().optional(),
+          orderNumber: z.string().min(1).max(50),
+          customerId: z.number().int().positive(),
+          quotationId: z.number().int().positive().optional(),
+          items: z.array(quotationItemSchema).min(1),
+          totalAmount: decimalString.optional(),
           notes: z.string().optional(),
         })
       )
-      .mutation(async ({ input, ctx }) => {
-        if (ctx.user?.role !== "admin") {
-          throw new Error("Unauthorized");
-        }
-        return createOrder(input as any);
-      }),
+      .mutation(({ input }) => createOrder(input)),
 
-    update: protectedProcedure
+    update: adminProcedure
       .input(
         z.object({
-          id: z.number(),
-          updates: z.any(),
+          id: z.number().int().positive(),
+          updates: orderUpdateSchema,
         })
       )
-      .mutation(async ({ input, ctx }) => {
-        if (ctx.user?.role !== "admin") {
-          throw new Error("Unauthorized");
-        }
-        return updateOrder(input.id, input.updates);
-      }),
+      .mutation(({ input }) => updateOrder(input.id, input.updates)),
   }),
 
   notifications: router({
     list: protectedProcedure
-      .input(
-        z.object({
-          isRead: z.boolean().optional(),
-        })
-      )
-      .query(async ({ input, ctx }) => {
-        if (!ctx.user) throw new Error("Unauthorized");
-        return getNotifications(ctx.user.id, input);
-      }),
+      .input(z.object({ isRead: z.boolean().optional() }))
+      .query(({ input, ctx }) => getNotifications(ctx.user.id, input)),
 
     markAsRead: protectedProcedure
-      .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => {
-        return markNotificationAsRead(input.id);
-      }),
+      .input(z.object({ id: z.number().int().positive() }))
+      .mutation(({ input }) => markNotificationAsRead(input.id)),
   }),
 
   communication: router({
     getLog: protectedProcedure
-      .input(z.object({ customerId: z.number() }))
-      .query(async ({ input }) => {
-        return getCommunicationLog(input.customerId);
-      }),
+      .input(z.object({ customerId: z.number().int().positive() }))
+      .query(({ input }) => getCommunicationLog(input.customerId)),
 
-    addLog: protectedProcedure
+    addLog: adminProcedure
       .input(
         z.object({
-          customerId: z.number(),
+          customerId: z.number().int().positive(),
           type: z.enum(["email", "whatsapp", "linkedin", "facebook", "instagram", "phone", "in_app"]),
           direction: z.enum(["outbound", "inbound"]),
-          subject: z.string().optional(),
+          subject: z.string().max(255).optional(),
           message: z.string().optional(),
           status: z.enum(["sent", "delivered", "read", "replied", "failed"]).optional(),
           agentType: z.enum(["outreach_agent", "support_agent", "manual"]).optional(),
           sentiment: z.enum(["positive", "neutral", "negative"]).optional(),
         })
       )
-      .mutation(async ({ input, ctx }) => {
-        if (ctx.user?.role !== "admin") {
-          throw new Error("Unauthorized");
-        }
-        return addCommunicationLog(input);
-      }),
+      .mutation(({ input }) => addCommunicationLog(input)),
   }),
 });
 

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
-  Search, ArrowLeft, HelpCircle, Zap, CheckCircle, Users, Package
+  Search, ArrowLeft, HelpCircle, Zap, CheckCircle, Users, Package, Sparkles
 } from 'lucide-react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
@@ -114,6 +114,25 @@ export default function HomePage() {
                 </button>
               ))}
             </div>
+          </div>
+        </section>
+
+        {/* ── AI Diagnose CTA ────────────────────────────────── */}
+        <section className="bg-gradient-to-r from-blue-600 to-blue-700 py-8 px-4">
+          <div className="max-w-3xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-white text-center sm:text-right">
+            <div>
+              <div className="flex items-center justify-center sm:justify-start gap-2 mb-1">
+                <Sparkles className="w-5 h-5" />
+                <span className="font-bold text-lg">تشخيص ذكي بالذكاء الاصطناعي</span>
+              </div>
+              <p className="text-blue-100 text-sm">ارفع صورة القطعة المعطوبة واحصل على تشخيص فوري + عرض سعر</p>
+            </div>
+            <a
+              href="/diagnose"
+              className="shrink-0 bg-white text-blue-700 font-bold text-sm px-6 py-3 rounded-xl hover:bg-blue-50 transition-colors shadow-md"
+            >
+              جرّب الآن — مجاني
+            </a>
           </div>
         </section>
 

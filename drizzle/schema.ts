@@ -45,8 +45,10 @@ export const products = mysqlTable(
     category: mysqlEnum("category", ["machinery", "spare_parts"]).notNull(),
     type: varchar("type", { length: 100 }), // e.g., "washer", "dryer", "valve", "pump"
     specifications: json("specifications"), // JSON for flexible specs storage
-    costPrice: decimal("costPrice", { precision: 12, scale: 2 }).notNull(), // USD
-    sellingPrice: decimal("sellingPrice", { precision: 12, scale: 2 }).notNull(), // OMR
+    costPrice: decimal("costPrice", { precision: 12, scale: 2 }).notNull(),
+    costCurrency: varchar("costCurrency", { length: 3 }).default("USD").notNull(),
+    sellingPrice: decimal("sellingPrice", { precision: 12, scale: 2 }).notNull(),
+    sellingCurrency: varchar("sellingCurrency", { length: 3 }).default("OMR").notNull(),
     profitMargin: decimal("profitMargin", { precision: 5, scale: 2 }), // Percentage
     supplierId: int("supplierId"),
     supplierSku: varchar("supplierSku", { length: 100 }),
@@ -221,7 +223,9 @@ export const pricingHistory = mysqlTable(
     productId: int("productId").notNull(),
     supplierId: int("supplierId"),
     costPrice: decimal("costPrice", { precision: 12, scale: 2 }),
+    costCurrency: varchar("costCurrency", { length: 3 }).default("USD"),
     sellingPrice: decimal("sellingPrice", { precision: 12, scale: 2 }),
+    sellingCurrency: varchar("sellingCurrency", { length: 3 }).default("OMR"),
     profitMargin: decimal("profitMargin", { precision: 5, scale: 2 }),
     changeReason: varchar("changeReason", { length: 255 }), // e.g., "supplier_price_drop", "market_adjustment"
     createdAt: timestamp("createdAt").defaultNow().notNull(),

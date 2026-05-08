@@ -43,9 +43,20 @@ export function middleware(req: NextRequest) {
     if (!isAuthenticated(req)) return unauthorizedJson();
   }
 
+  // /api/admin/vision — AI Vision agent (admin only)
+  if (pathname.startsWith('/api/admin/vision')) {
+    if (!isAuthenticated(req)) return unauthorizedJson();
+  }
+
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ['/admin/:path*', '/api/quote', '/api/quote/:path*'],
+  matcher: [
+    '/admin/:path*',
+    '/api/quote',
+    '/api/quote/:path*',
+    '/api/admin/vision',
+    '/api/admin/vision/:path*',
+  ],
 };

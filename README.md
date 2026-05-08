@@ -53,16 +53,29 @@
 ## التثبيت
 
 ```bash
-git clone https://github.com/yourusername/laundry-parts-hub.git
+git clone https://github.com/aglaredycleanzz-cell/laundry-parts-hub.git
 cd laundry-parts-hub
 npm install
+cp .env.local.example .env.local   # ثم عبّئ المتغيرات المطلوبة
+npm run db:push                    # تطبيق مخطط Drizzle على قاعدة MySQL
 npm run dev
 ```
+
+## متغيرات البيئة المطلوبة
+
+| المتغير | الوصف |
+|---------|-------|
+| `DATABASE_URL` | سلسلة اتصال MySQL (مطلوبة) |
+| `JWT_SECRET` | سر توقيع كوكي الجلسة |
+| `OAUTH_SERVER_URL` + `VITE_APP_ID` | إعدادات مزود الـ OAuth |
+| `OWNER_OPEN_ID` | الـ openId الذي يُرقّى تلقائياً إلى `admin` |
+| `ADMIN_PASSWORD` + `ADMIN_EMAIL` | تسجيل دخول صفحة `/admin/requests` وعنوان التنبيهات |
+| `SMTP_*` | بيانات خادم البريد للإشعارات |
+| `BUILT_IN_FORGE_API_KEY` | مفتاح بوابة الـ LLM (Vision + Support agents) |
+| `NEXT_PUBLIC_SITE_URL` | الـ URL الأساسي للنشر |
+
+راجع `.env.local.example` للحصول على القائمة الكاملة مع التعليقات.
 
 ## الترخيص
 
 MIT License
-
----
-
-**
