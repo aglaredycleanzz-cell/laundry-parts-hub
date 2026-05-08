@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { Menu, X, Wrench, Phone } from 'lucide-react';
+import { Menu, X, Wrench, Phone, Sparkles } from 'lucide-react';
 
 export default function Header() {
   const [open, setOpen] = useState(false);
@@ -37,6 +37,13 @@ export default function Header() {
         {/* CTA + Mobile toggle */}
         <div className="flex items-center gap-3">
           <Link
+            href="/diagnose"
+            className="hidden sm:flex items-center gap-1.5 bg-blue-500 hover:bg-blue-600 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
+          >
+            <Sparkles className="w-4 h-4" />
+            تشخيص ذكي
+          </Link>
+          <Link
             href="/quote"
             className="hidden sm:flex items-center gap-1.5 bg-accent-500 hover:bg-accent-600 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
           >
@@ -64,6 +71,14 @@ export default function Header() {
           </Link>
           <Link href="/unknown" className="text-brand-200 hover:text-white py-2" onClick={() => setOpen(false)}>
             لا أعرف اسم القطعة
+          </Link>
+          <Link
+            href="/diagnose"
+            className="flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white font-semibold px-4 py-2.5 rounded-lg transition-colors"
+            onClick={() => setOpen(false)}
+          >
+            <Sparkles className="w-4 h-4" />
+            تشخيص ذكي
           </Link>
           <Link
             href="/quote"
