@@ -1,0 +1,36 @@
+{
+  "name": "Laundry Parts Hub",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
+
+  "forwardPorts": [3000],
+  "portsAttributes": {
+    "3000": {
+      "label": "App",
+      "onAutoForward": "openPreview"
+    }
+  },
+
+  "postCreateCommand": "npm install",
+  "postStartCommand": "npm run dev",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "bradlc.vscode-tailwindcss",
+        "esbenp.prettier-vscode",
+        "dbaeumer.vscode-eslint",
+        "prisma.prisma"
+      ],
+      "settings": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.formatOnSave": true
+      }
+    }
+  },
+
+  "remoteEnv": {
+    "ADMIN_PASSWORD": "${localEnv:ADMIN_PASSWORD}",
+    "BUILT_IN_FORGE_API_KEY": "${localEnv:BUILT_IN_FORGE_API_KEY}",
+    "DATABASE_URL": "${localEnv:DATABASE_URL}"
+  }
+}
